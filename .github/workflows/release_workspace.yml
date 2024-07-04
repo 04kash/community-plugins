@@ -138,5 +138,6 @@ jobs:
       - name: Create tag
         run: node ../../scripts/ci/create-tag.js
         env:
+          NODE_PATH: ../../node_modules
           WORKSPACE_NAME: ${{ inputs.workspace }}
           GITHUB_TOKEN: ${{ secrets.GH_SERVICE_ACCOUNT_TOKEN }}
