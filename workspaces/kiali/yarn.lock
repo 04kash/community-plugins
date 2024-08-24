@@ -2535,7 +2535,7 @@ __metadata:
     "@janus-idp/cli": 1.13.1
     "@types/express": 4.17.21
     "@types/supertest": 2.0.16
-    axios: ^1.7.4
+    axios: ^1.7.5
     express: ^4.18.2
     express-promise-router: ^4.1.1
     moment: ^2.29.4
@@ -5379,6 +5379,8 @@ __metadata:
     node-gyp: ^9.0.0
     prettier: ^2.3.2
     react: ^18.3.1
+    react-dom: ^18.3.1
+    react-router-dom: ^6.26.1
     typescript: ~5.3.0
   languageName: unknown
   linkType: soft
@@ -7379,6 +7381,13 @@ __metadata:
     "@mui/icons-material": ^5.14.19
     "@mui/material": ^5.14.20
   checksum: 2a5d52e2ba31c5a6ff2cfe75d78b1de1afa00690b522875e52d8ddc8805a3ccc5c202414a0304790efe0ed0ea2c570b9c8bf7472c7895d4bbe416c6541435196
+  languageName: node
+  linkType: hard
+
+"@remix-run/router@npm:1.19.1":
+  version: 1.19.1
+  resolution: "@remix-run/router@npm:1.19.1"
+  checksum: ebe4474ba0c1046093976b48a4eb4e39bd2f47368aacea21400126d72e133d2cfbfb50254cf1bde0b66dacdf0344452f743049d1595a22e86130668f60112376
   languageName: node
   linkType: hard
 
@@ -11443,6 +11452,17 @@ __metadata:
     form-data: ^4.0.0
     proxy-from-env: ^1.1.0
   checksum: 0c17039a9acfe6a566fca8431ba5c1b455c83d30ea6157fec68a6722878fcd30f3bd32d172f6bee0c51fe75ca98e6414ddcd968a87b5606b573731629440bfaf
+  languageName: node
+  linkType: hard
+
+"axios@npm:^1.7.5":
+  version: 1.7.5
+  resolution: "axios@npm:1.7.5"
+  dependencies:
+    follow-redirects: ^1.15.6
+    form-data: ^4.0.0
+    proxy-from-env: ^1.1.0
+  checksum: 2859fe01437cf133eee35571abc1d4b5224bb13e530e66cb3581ca226e170541dd5eef9f46abb41592cee0a2f54930c9e4978354e0cf1064748fc20d9a05e9d5
   languageName: node
   linkType: hard
 
@@ -23778,6 +23798,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"react-dom@npm:^18.3.1":
+  version: 18.3.1
+  resolution: "react-dom@npm:18.3.1"
+  dependencies:
+    loose-envify: ^1.1.0
+    scheduler: ^0.23.2
+  peerDependencies:
+    react: ^18.3.1
+  checksum: 298954ecd8f78288dcaece05e88b570014d8f6dce5db6f66e6ee91448debeb59dcd31561dddb354eee47e6c1bb234669459060deb238ed0213497146e555a0b9
+  languageName: node
+  linkType: hard
+
 "react-double-scrollbar@npm:0.0.15":
   version: 0.0.15
   resolution: "react-double-scrollbar@npm:0.0.15"
@@ -23941,6 +23973,30 @@ __metadata:
   version: 0.14.2
   resolution: "react-refresh@npm:0.14.2"
   checksum: d80db4bd40a36dab79010dc8aa317a5b931f960c0d83c4f3b81f0552cbcf7f29e115b84bb7908ec6a1eb67720fff7023084eff73ece8a7ddc694882478464382
+  languageName: node
+  linkType: hard
+
+"react-router-dom@npm:^6.26.1":
+  version: 6.26.1
+  resolution: "react-router-dom@npm:6.26.1"
+  dependencies:
+    "@remix-run/router": 1.19.1
+    react-router: 6.26.1
+  peerDependencies:
+    react: ">=16.8"
+    react-dom: ">=16.8"
+  checksum: e393ab62e3239585d44d598e6bc8cc138ac8353f3dc46262680c6ad83dea35773662ada2f1c353921a05c37d1f369c0a2cb097848a6210689e9b6076550c7de0
+  languageName: node
+  linkType: hard
+
+"react-router@npm:6.26.1":
+  version: 6.26.1
+  resolution: "react-router@npm:6.26.1"
+  dependencies:
+    "@remix-run/router": 1.19.1
+  peerDependencies:
+    react: ">=16.8"
+  checksum: 810949febc1bf2a6f8dd65f4c0532a2413d0532df462b3e78891aec81dca5a088d387b32c9922cde52bd9770f32263590993cab2383c94ddc1cdb50a20fd7adc
   languageName: node
   linkType: hard
 
@@ -24976,6 +25032,15 @@ __metadata:
   dependencies:
     xmlchars: ^2.2.0
   checksum: d3fa3e2aaf6c65ed52ee993aff1891fc47d5e47d515164b5449cbf5da2cbdc396137e55590472e64c5c436c14ae64a8a03c29b9e7389fc6f14035cf4e982ef3b
+  languageName: node
+  linkType: hard
+
+"scheduler@npm:^0.23.2":
+  version: 0.23.2
+  resolution: "scheduler@npm:0.23.2"
+  dependencies:
+    loose-envify: ^1.1.0
+  checksum: 3e82d1f419e240ef6219d794ff29c7ee415fbdc19e038f680a10c067108e06284f1847450a210b29bbaf97b9d8a97ced5f624c31c681248ac84c80d56ad5a2c4
   languageName: node
   linkType: hard
 

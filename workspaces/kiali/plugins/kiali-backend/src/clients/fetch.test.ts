@@ -125,8 +125,10 @@ describe('kiali Fetch', () => {
           },
           logger,
         );
+        console.log('Current working directory:', process.cwd());
+        const CA_CERTS_PREM_PATH = `${process.cwd()}/plugins/kiali-backend/__fixtures__/ca_example.pem`;
         const result = (kialiFetch as any).bufferFromFileOrString(
-          './__fixtures__/ca_example.pem',
+          CA_CERTS_PREM_PATH,
         );
 
         expect(result).toBeDefined();
@@ -141,9 +143,10 @@ describe('kiali Fetch', () => {
           },
           logger,
         );
+        const CA_CERTS_PREM_PATH = `${process.cwd()}/plugins/kiali-backend/__fixtures__/ca_example.pem`;
         const result = (kialiFetch as any).bufferFromFileOrString(
           undefined,
-          './__fixtures__/ca_example.pem',
+          CA_CERTS_PREM_PATH,
         );
 
         expect(result).toBeDefined();

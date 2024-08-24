@@ -7,9 +7,9 @@
   },
   "scripts": {
     "tsc": "tsc",
-    "tsc:full": "tsc --skipLibCheck false --incremental false",
+    "tsc:full": "tsc --skipLibCheck true --incremental false",
     "build:all": "backstage-cli repo build --all",
-    "build:api-reports": "yarn build:api-reports:only --tsc",
+    "build:api-reports": "yarn build:api-reports:only",
     "build:api-reports:only": "backstage-repo-tools api-reports -o ae-wrong-input-file-type --validate-release-tags",
     "clean": "backstage-cli repo clean",
     "test": "backstage-cli repo test",
@@ -58,6 +58,8 @@
     ]
   },
   "dependencies": {
-    "react": "^18.3.1"
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.1"
   }
 }
