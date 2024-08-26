@@ -1,6 +1,6 @@
 dynamicPlugins:
   frontend:
-    janus-idp.backstage-plugin-kiali:
+    backstage-community.plugin-kiali:
       appIcons:
         - name: kialiIcon
           importName: KialiIcon
