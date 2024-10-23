@@ -37,11 +37,11 @@ This guide will show you how to migrate plugins from janus-idp/backstage-plugins
       yarn community-cli janus-plugin migrate --monorepo-path ../backstage-plugins --workspace-name workspace-name --branch deprecate-workspace-name --maintainers @maintainer1,@maintainer2,@maintainer3
      ```
 
-4. > [!IMPORTANT]
-   > This script updates metadata commonly found across all plugins. Please review your migrated plugins to ensure that all references to "janus" have been updated to point to "community-plugins."
-   > Also make sure that you don't accidentally commit the `workspaces/repo-tools/packages/cli/src/commands/plugin/janus-migration.ts` or `workspaces/repo-tools/packages/cli/src/commands/index.ts` files.
+4. The script will generate changesets in both repositories. Be sure to commit these changes and open pull requests.
 
-   The script will generate changesets in both repositories. Be sure to commit these changes and open pull requests.
+> [!IMPORTANT]
+> This script updates metadata commonly found across all plugins. Please review your migrated plugins to ensure that all references to "janus" have been updated to point to "community-plugins."
+> Also make sure that you don't accidentally commit the `workspaces/repo-tools/packages/cli/src/commands/plugin/janus-migration.ts` or `workspaces/repo-tools/packages/cli/src/commands/index.ts` files.
 
 5. If you run into CI issues in `community-plugins` take a look at [this github gist](https://gist.github.com/Fortune-Ndlovu/1562789f3905b4fe818b9079a3032982) which outlines the process taken to migrate argocd plugins in great detail.
 
