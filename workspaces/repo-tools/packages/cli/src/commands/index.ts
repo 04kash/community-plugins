@@ -56,7 +56,6 @@ export const registerCommands = (program: Command) => {
       'Name of the workspace that will be created, the plugins will be pulled automatically from the monorepo',
     )
     .option('--branch [branch]', 'use a branch for deprecation commits')
-    .option('--force', 'Overwrite existing workspace', false)
     .option('--maintainers <names...>', 'List of maintainers', value =>
       value.split(','),
     )

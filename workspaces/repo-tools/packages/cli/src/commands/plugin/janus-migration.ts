@@ -93,7 +93,6 @@ const ensureWorkspaceExists = async (options: {
   workspacePath: string;
   workspaceName: string;
   communityPluginsRoot: string;
-  force: boolean;
 }) => {
   // check if the workspace exists, create it if not.
   const workspaceExists = await fs
@@ -102,14 +101,10 @@ const ensureWorkspaceExists = async (options: {
     .catch(() => false);
 
   if (workspaceExists) {
-    if (options.force) {
-      await fs.rm(options.workspacePath, { recursive: true });
-    } else {
-      console.error(
-        chalk.red`Workspace already exists at ${options.workspacePath}, use --force to overwrite`,
-      );
-      throw new ExitCodeError(1);
-    }
+    console.error(
+      chalk.red`Workspace already exists at ${options.workspacePath}`,
+    );
+    throw new ExitCodeError(1);
   }
 
   console.log(chalk.yellow`Creating workspace at ${options.workspacePath}`);
@@ -292,10 +287,9 @@ const packageAndTypeMap = {
 };
 
 export default async (opts: OptionValues) => {
-  const { monorepoPath, workspaceName, force, branch, maintainers } = opts as {
+  const { monorepoPath, workspaceName, branch, maintainers } = opts as {
     monorepoPath: string;
     workspaceName: string;
-    force: boolean;
     branch?: string;
     maintainers: string[];
   };
@@ -336,7 +330,6 @@ export default async (opts: OptionValues) => {
     workspacePath,
     workspaceName,
     communityPluginsRoot,
-    force,
   });
 
   for (const packageToBeMoved of packagesToBeMoved) {
