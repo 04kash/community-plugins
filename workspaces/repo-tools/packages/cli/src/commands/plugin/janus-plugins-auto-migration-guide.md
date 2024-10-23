@@ -22,7 +22,7 @@ This guide will show you how to migrate plugins from janus-idp/backstage-plugins
      git checkout -b "migrate-workspace-name"
      ```
 
-2. Update the community-cli to include the `janus-plugin migrate` command. In the `backstage/community-plugins` repository, copy the [`janus-migration.ts`](https://github.com/04kash/community-plugins/blob/janus-migration-script/workspaces/repo-tools/packages/cli/src/commands/plugin/janus-migration.ts) file into the following directory: `workspaces/repo-tools/packages/cli/src/commands/plugin`
+2. Update the community-cli to include the `janus-plugin migrate` command. In the `backstage/community-plugins` repository, add the [`janus-migration.ts`](https://github.com/04kash/community-plugins/blob/janus-migration-script/workspaces/repo-tools/packages/cli/src/commands/plugin/janus-migration.ts) file into the following directory: `workspaces/repo-tools/packages/cli/src/commands/plugin`
    Additionally, copy the [`index.ts`](https://github.com/04kash/community-plugins/blob/janus-migration-script/workspaces/repo-tools/packages/cli/src/commands/index.ts/#L50-#L64) file into: `workspaces/repo-tools/packages/cli/src/commands/index.ts`
 
 3. In the `backstage/community-plugins` repository, execute the janus-plugin migrate command.- Usage:`yarn community-cli janus-plugin migrate --monorepo-path [path_to_backstage_plugins]--workspace-name [workspace_name] --branch [branch_name] --maintainers [maintainer1],[maintainer2],[maintainer3],...`
@@ -37,8 +37,9 @@ This guide will show you how to migrate plugins from janus-idp/backstage-plugins
       yarn community-cli janus-plugin migrate --monorepo-path ../backstage-plugins --workspace-name workspace-name --branch deprecate-workspace-name --maintainers @maintainer1,@maintainer2,@maintainer3
      ```
 
-4. ⚠️ **Important**
-   This script updates metadata commonly found across all plugins. Please review your migrated plugins to ensure that all references to "janus" have been updated to point to "community-plugins."
+4. > [!IMPORTANT]
+   > This script updates metadata commonly found across all plugins. Please review your migrated plugins to ensure that all references to "janus" have been updated to point to "community-plugins."
+   > Also make sure that you don't accidentally commit the `workspaces/repo-tools/packages/cli/src/commands/plugin/janus-migration.ts` or `workspaces/repo-tools/packages/cli/src/commands/index.ts` files.
 
    The script will generate changesets in both repositories. Be sure to commit these changes and open pull requests.
 

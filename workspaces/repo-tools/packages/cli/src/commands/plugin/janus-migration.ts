@@ -24,7 +24,6 @@ import { createWorkspace } from '../../lib/workspaces/createWorkspace';
 import { ExitCodeError } from '../../lib/errors';
 import { promisify } from 'util';
 import { execFile } from 'child_process';
-import semver from 'semver';
 
 const replace = require('replace-in-file');
 
@@ -123,12 +122,12 @@ const fixSourceCodeReferences = async (options: {
   for (const pkg of options.packagesToBeMoved) {
     const oldConfigPath = path.join(
       options.workspacePath,
-      pkg.packageJson.repository.directory,
+      (pkg.packageJson as any).repository?.directory,
       'app-config.janus-idp.yaml',
     );
     const newConfigPath = path.join(
       options.workspacePath,
-      pkg.packageJson.repository.directory,
+      (pkg.packageJson as any).repository?.directory,
       'app-config.yaml',
     );
 
@@ -147,12 +146,12 @@ const fixSourceCodeReferences = async (options: {
     // Update janus references in catalog-info.yaml
     const catalogInfoPath = path.join(
       options.workspacePath,
-      pkg.packageJson.repository.directory,
+      (pkg.packageJson as any).repository?.directory,
       'catalog-info.yaml',
     );
 
     // Check if catalog-info.yaml exists
-    const catalogInfoFileExists = await fs.pathExists(oldConfigPath);
+    const catalogInfoFileExists = await fs.pathExists(catalogInfoPath);
 
     if (catalogInfoFileExists) {
       updateCatalogInfoYaml(
@@ -164,7 +163,7 @@ const fixSourceCodeReferences = async (options: {
     // Update janus references in .prettierrc.js
     const prettierConfigPath = path.join(
       options.workspacePath,
-      pkg.packageJson.repository.directory,
+      (pkg.packageJson as any).repository?.directory,
       '.prettierrc.js',
     );
 
@@ -368,7 +367,8 @@ export default async (opts: OptionValues) => {
       directory: `workspaces/${workspaceName}/${packageToBeMoved.relativeDir}`,
     };
 
-    movedPackageJson.bugs = 'https://github.com/backstage/community-plugins';
+    movedPackageJson.bugs =
+      'https://github.com/backstage/community-plugins/issues';
     if (movedPackageJson.files) {
       const updatedFiles = movedPackageJson.files.map((file: string) =>
         file === 'app-config.janus-idp.yaml' ? 'app-config.yaml' : file,
@@ -567,6 +567,16 @@ export default async (opts: OptionValues) => {
       shell: true,
     });
     await exec('npx prettier --write .', { cwd: workspacePath, shell: true });
+  }
+
+  console.log(chalk.yellow`Running npx eslint . --fix in new repository`);
+  try {
+    await exec('npx eslint . --fix', { cwd: workspacePath, shell: true });
+  } catch (error) {
+    // Ignore the error or log a generic message
+    console.log(
+      chalk.yellow`ESLint completed with errors, but they will be ignored.`,
+    );
   }
 
   // reset monorepo
