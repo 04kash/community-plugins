@@ -1,6 +1,6 @@
 # Guide for Migrating Plugins from janus-idp/backstage-plugins to backstage/community-plugins
 
-This guide will show you how to migrate plugins from janus-idp/backstage-plugins to backstage/community-plugins using the `janus-migration.ts` script.
+This guide will show you how to migrate plugins from `janus-idp/backstage-plugins` to `backstage/community-plugins` using the cli.
 
 ## Prerequisites
 
