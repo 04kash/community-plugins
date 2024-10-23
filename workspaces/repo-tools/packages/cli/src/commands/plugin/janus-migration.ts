@@ -132,28 +132,36 @@ const fixSourceCodeReferences = async (options: {
       'app-config.yaml',
     );
 
-    try {
+    // Check if app-config.janus-idp.yaml.js exists
+    const appConfigFileExists = await fs.pathExists(oldConfigPath);
+
+    if (appConfigFileExists) {
       await fs.rename(oldConfigPath, newConfigPath);
-      console.log(`Renamed ${oldConfigPath} to ${newConfigPath}`);
-      let appConfig = await fs.readFile(newConfigPath, 'utf-8');
-      appConfig = appConfig.replace(/janus-idp/g, 'backstage-community');
-      appConfig = appConfig.replace(/backstage-plugin/g, 'plugin');
-      await fs.writeFile(newConfigPath, appConfig, 'utf-8');
-    } catch (error) {
-      console.error(
-        `Error renaming config file for ${pkg.packageJson.name}: ${error}`,
-      );
+      const replacements = {
+        'janus-idp': 'backstage-community',
+      };
+
+      await replaceInFile(newConfigPath, replacements);
     }
+
+    // Update janus references in catalog-info.yaml
     const catalogInfoPath = path.join(
       options.workspacePath,
       pkg.packageJson.repository.directory,
       'catalog-info.yaml',
     );
-    updateCatalogInfoYaml(
-      catalogInfoPath,
-      path.basename(options.workspacePath),
-    ).catch(console.error);
 
+    // Check if catalog-info.yaml exists
+    const catalogInfoFileExists = await fs.pathExists(oldConfigPath);
+
+    if (catalogInfoFileExists) {
+      updateCatalogInfoYaml(
+        catalogInfoPath,
+        path.basename(options.workspacePath),
+      ).catch(console.error);
+    }
+
+    // Update janus references in .prettierrc.js
     const prettierConfigPath = path.join(
       options.workspacePath,
       pkg.packageJson.repository.directory,
@@ -161,10 +169,9 @@ const fixSourceCodeReferences = async (options: {
     );
 
     // Check if .prettierrc.js exists
-    const fileExists = await fs.pathExists(prettierConfigPath);
+    const prettierConfigFileExists = await fs.pathExists(prettierConfigPath);
 
-    if (fileExists) {
-      // Read the content of the file
+    if (prettierConfigFileExists) {
       let prettierConfig = await fs.readFile(prettierConfigPath, 'utf-8');
 
       // Replace all occurrences of @janus-idp with @backstage-community
@@ -173,7 +180,6 @@ const fixSourceCodeReferences = async (options: {
         '@backstage-community',
       );
 
-      // Write the updated content back to the file
       await fs.writeFile(prettierConfigPath, prettierConfig, 'utf-8');
     }
   }
@@ -209,23 +215,31 @@ ${options.message}
 
   await fs.appendFile(changesetFile, changesetContents);
 };
-
 const deprecatePackage = async (options: { package: Package }) => {
   const newPackageName = generateNewPackageName(
     options.package.packageJson.name,
   );
 
-  // first update the readme
+  // Define the package directory
+  const packageDir = options.package.dir;
+
+  // First, update the README
   await fs.writeFile(
-    path.join(options.package.dir, 'README.md'),
+    path.join(packageDir, 'README.md'),
     `# Deprecated\n\nThis package has been moved to the [backstage-community/plugins](https://github.com/backstage/community-plugins) repository. Migrate to using \`${newPackageName}\` instead.\n`,
   );
 
-  // then update package.json
-  const packageJsonPath = path.join(options.package.dir, 'package.json');
-  const packageJson = await fs.readJson(packageJsonPath);
-  packageJson.private = 'true';
-  await fs.writeJson(packageJsonPath, packageJson, { spaces: 2 });
+  // List all files in the directory
+  const files = await fs.readdir(packageDir);
+
+  // Filter out README.md and delete the rest
+  await Promise.all(
+    files
+      .filter(file => file !== 'README.md') // Exclude README.md
+      .map(file =>
+        fs.rm(path.join(packageDir, file), { recursive: true, force: true }),
+      ),
+  );
 };
 
 // Function to replace content in the file
@@ -244,7 +258,6 @@ async function replaceInFile(
 
     // Write the updated content back to the file
     await fs.writeFile(filePath, content);
-    console.log(`Updated ${filePath}`);
   } catch (err) {
     console.error(`Error processing ${filePath}: ${err}`);
   }
@@ -497,12 +510,13 @@ export default async (opts: OptionValues) => {
   }
 
   // run yarn export dynamic in each package
-  console.log(chalk.yellow`Running yarn export-dynamic in each package`);
   for (const pkg of packagesToBeMoved) {
+    console.log(
+      chalk.yellow`Running yarn export-dynamic in ${pkg.packageJson.name}`,
+    );
     const packagePath = path.join(workspacePath, pkg.relativeDir);
-    console.log(packagePath);
     try {
-      await exec('yarn', ['export-dynamic'], {
+      await exec('yarn', ['export-dynamic', '--clean'], {
         cwd: packagePath,
         shell: true,
       });
@@ -527,14 +541,12 @@ export default async (opts: OptionValues) => {
     });
   }
 
-  console.log(
-    chalk.blueBright`Running yarn build:api-reports in new repository`,
-  );
+  console.log(chalk.yellow`Running yarn build:api-reports in new repository`);
   try {
     await exec('yarn build:api-reports', { cwd: workspacePath, shell: true });
   } catch (error) {
     console.log(
-      chalk.yellow`Adding --allow-all-warnings flag to build:api-reports:only`,
+      chalk.blueBright`Adding --allow-all-warnings flag to build:api-reports:only`,
     );
     workspacePackageJson.scripts['build:api-reports:only'] =
       'backstage-repo-tools api-reports --allow-all-warnings -o ae-wrong-input-file-type --validate-release-tags';
@@ -574,7 +586,7 @@ export default async (opts: OptionValues) => {
     });
   }
 
-  // deprecate package in monorepo on new branch
+  // deprecate package in monorepo on new branch and remove all files except the README.md file
   for (const packageToBeMoved of packagesToBeMoved) {
     await deprecatePackage({ package: packageToBeMoved });
   }

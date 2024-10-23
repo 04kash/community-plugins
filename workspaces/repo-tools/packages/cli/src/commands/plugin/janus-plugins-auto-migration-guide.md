@@ -43,3 +43,13 @@ This guide will show you how to migrate plugins from janus-idp/backstage-plugins
    The script will generate changesets in both repositories. Be sure to commit these changes and open pull requests.
 
 5. If you run into CI issues in `community-plugins` take a look at [this github gist](https://gist.github.com/Fortune-Ndlovu/1562789f3905b4fe818b9079a3032982) which outlines the process taken to migrate argocd plugins in great detail.
+
+6. Check if the migrated plugins need to be added to janus-idp/backstage-showcase. If they do, create a wrapper for them following the steps below:
+
+- In `dynamic-plugins> wrappers` create a directory, name it based on your plugin (eg: `backstage-community-plugin-3scale-backend`)
+- Create a `src` directory within it
+- Add a `index.ts` file to this src directory and export from the plugin package here. Eg: `export * from '@backstage-community/plugin-3scale-backend';`
+- In `dynamic-plugins> wrappers > backstage-community-plugin-3scale-backend` (or whatever you named your wrapper directory), add a `package.json` file. Add your plugin package in dependencies.
+  - [Frontend plugin `package.json` example](https://github.com/janus-idp/backstage-showcase/blob/main/dynamic-plugins/wrappers/backstage-community-plugin-redhat-argocd/package.json)
+  - [Backend plugin `package.json` example](https://github.com/janus-idp/backstage-showcase/blob/main/dynamic-plugins/wrappers/backstage-community-plugin-3scale-backend/package.json)
+- run `yarn export-dynamic` to generate dist-dynamic directory
