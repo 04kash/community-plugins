@@ -171,16 +171,25 @@ const fixSourceCodeReferences = async (options: {
     const prettierConfigFileExists = await fs.pathExists(prettierConfigPath);
 
     if (prettierConfigFileExists) {
-      let prettierConfig = await fs.readFile(prettierConfigPath, 'utf-8');
-
-      // Replace all occurrences of @janus-idp with @backstage-community
-      prettierConfig = prettierConfig.replace(
-        /@janus-idp/g,
-        '@backstage-community',
-      );
-
-      await fs.writeFile(prettierConfigPath, prettierConfig, 'utf-8');
+      const replacements = {
+        '@janus-idp': '@backstage-community',
+      };
+      await replaceInFile(prettierConfigPath, replacements);
     }
+
+    // update links in README.md
+    const readmePath = path.join(
+      options.workspacePath,
+      (pkg.packageJson as any).repository?.directory,
+      'README.md',
+    );
+
+    const replacements = {
+      'https://github.com/janus-idp/backstage-plugins/tree/main': `https://github.com/backstage/community-plugins/tree/main/workspaces/${path.basename(
+        options.workspacePath,
+      )}`,
+    };
+    await replaceInFile(readmePath, replacements);
   }
 
   return await replace({
