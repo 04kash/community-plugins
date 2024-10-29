@@ -86,7 +86,7 @@ jobs:
         run: node ../../scripts/ci/check-if-release.js
         env:
           WORKSPACE_NAME: ${{ inputs.workspace }}
-          COMMIT_SHA_BEFORE: '${{ github.event.before }}'
+          COMMIT_SHA_BEFORE: "${{ github.event.before }}"
 
       - name: Update Version Packages (${{ inputs.workspace }}) PR
         id: changesets-pr
@@ -100,8 +100,6 @@ jobs:
           skipRootChangelogUpdate: true
         env:
           GITHUB_TOKEN: ${{ secrets.GH_SERVICE_ACCOUNT_TOKEN }}
-
-
 
   release:
     name: Release workspace ${{ inputs.workspace }} on branch ${{ inputs.branch }}
@@ -156,10 +154,16 @@ jobs:
           yarn workspaces foreach -v --no-private npm publish --access public --tolerate-republish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      
+
+      - name: Fetch the latest commit SHA from the specified branch
+        run: |
+          git fetch origin ${{ inputs.branch }}  # Fetch the specified branch
+          echo "TARGET_COMMIT_SHA=$(git rev-parse origin/${{ inputs.branch }})" >> $GITHUB_ENV  # Get the latest commit SHA
+
       - name: Create tag
         working-directory: ${{ github.workspace }}/scripts/ci
         run: node create-tag.js
         env:
           WORKSPACE_NAME: ${{ inputs.workspace }}
           GITHUB_TOKEN: ${{ secrets.GH_SERVICE_ACCOUNT_TOKEN }}
+          TARGET_COMMIT_SHA: ${{env.TARGET_COMMIT_SHA}}

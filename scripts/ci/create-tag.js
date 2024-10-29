@@ -61,14 +61,14 @@ async function main() {
   if (!process.env.WORKSPACE_NAME) {
     throw new Error('WORKSPACE_NAME environment variable not set');
   }
-  if (!process.env.GITHUB_SHA) {
+  if (!process.env.TARGET_COMMIT_SHA) {
     throw new Error('GITHUB_SHA is not set');
   }
   if (!process.env.GITHUB_TOKEN) {
     throw new Error('GITHUB_TOKEN is not set');
   }
 
-  const commitSha = process.env.GITHUB_SHA;
+  const commitSha = process.env.TARGET_COMMIT_SHA;
   const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
 
   const repoRoot = resolvePath(__dirname, '..', '..');
