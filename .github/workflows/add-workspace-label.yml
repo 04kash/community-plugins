@@ -1,0 +1,31 @@
+name: Label Issues Based on Body
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  label_issue:
+    runs-on: ubuntu-latest
+    if: contains(join(github.event.issue.labels.*.name, ','), 'bug') || contains(join(github.event.issue.labels.*.name, ','), 'enhancement')
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: npm install @octokit/rest
+
+      - name: Extract issue body and number
+        run: |
+          {
+            echo "ISSUE_BODY<<EOF"
+            echo "${{ github.event.issue.body }}"
+            echo "EOF"
+          } >> $GITHUB_ENV
+          echo "ISSUE_NUMBER=${{ github.event.issue.number }}" >> $GITHUB_ENV
+
+      - name: Run script to determine label
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node ./scripts/add-workspace-label.js
