@@ -55,7 +55,7 @@ async function main() {
 
     console.log(`✅ Label "${label}" added successfully!`);
   } catch (error) {
-    console.error(`❌ Failed to add label: ${error.message}`);
+    console.error(`❌ Failed to add label "${label}": ${error.message}`);
     process.exit(1);
   }
 }
