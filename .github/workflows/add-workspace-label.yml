@@ -7,7 +7,7 @@ on:
 jobs:
   label_issue:
     runs-on: ubuntu-latest
-    if: contains(join(github.event.issue.labels.*.name, ','), 'bug') || contains(join(github.event.issue.labels.*.name, ','), 'enhancement')
+    if: contains(github.event.issue.labels.*.name, 'bug') || contains(github.event.issue.labels.*.name, 'enhancement')
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
