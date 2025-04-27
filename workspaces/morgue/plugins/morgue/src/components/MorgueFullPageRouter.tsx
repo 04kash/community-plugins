@@ -13,20 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { createRouteRef, createSubRouteRef } from '@backstage/core-plugin-api';
+import { Route, Routes } from 'react-router-dom';
+import { MorgueTablePage } from './MorgueTablePage';
+import React from 'react';
+import { CreatePostMortemForm } from './CreatePostMortemPage';
+import { PostMortemWrapper } from './PostMortemWrapper';
 
-export const rootRouteRef = createRouteRef({
-  id: 'morgue',
-});
-
-export const createPostMortemRouteRef = createSubRouteRef({
-  id: 'morgue/create',
-  path: '/create',
-  parent: rootRouteRef,
-});
-
-export const viewPostMortemRouteRef = createSubRouteRef({
-  id: 'morgue/view',
-  path: '/post-mortem/:id',
-  parent: rootRouteRef,
-});
+export const MorgueFullPageRouter = () => {
+  return (
+    <Routes>
+      <Route path="/" Component={MorgueTablePage} />
+      <Route path="/create" Component={CreatePostMortemForm} />
+      <Route path="/post-mortem/:id" Component={PostMortemWrapper} />
+    </Routes>
+  );
+};

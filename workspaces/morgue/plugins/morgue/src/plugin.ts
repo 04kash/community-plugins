@@ -27,30 +27,16 @@ export const morguePlugin = createPlugin({
   },
 });
 
-export const MorgueTablePage = morguePlugin.provide(
+/**
+ * Morgue page with routes for different pages.
+ * @public
+ */
+export const MorgueFullPageRouter = morguePlugin.provide(
   createRoutableExtension({
-    name: 'MorgueTablePage',
+    name: 'MorguePage',
     component: () =>
-      import('./components/MorgueTablePage').then(m => m.MorgueTablePage),
-    mountPoint: rootRouteRef,
-  }),
-);
-
-export const PostMortemPage = morguePlugin.provide(
-  createRoutableExtension({
-    name: 'PostMortemPage',
-    component: () =>
-      import('./components/PostMortemPage').then(m => m.PostMortemPage),
-    mountPoint: rootRouteRef,
-  }),
-);
-
-export const CreatePostMortemPage = morguePlugin.provide(
-  createRoutableExtension({
-    name: 'CreatePostMortemPage',
-    component: () =>
-      import('./components/CreatePostMortemPage').then(
-        m => m.CreatePostMortemForm,
+      import('./components/MorgueFullPageRouter').then(
+        m => m.MorgueFullPageRouter,
       ),
     mountPoint: rootRouteRef,
   }),

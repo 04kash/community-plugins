@@ -50,15 +50,16 @@ type TimelineEntry = {
 };
 
 type PostMortem = {
+  id: string;
   title: string;
   participants?: string[];
-  impacted_entities?: string[];
+  impactedEntities?: string[];
   description: string;
   detection: string;
   response: string;
   resolution: string;
   prevention: string;
-  lessons_learned: string;
+  lessonsLearned: string;
   timeline?: TimelineEntry[];
 };
 
@@ -99,13 +100,13 @@ export const PostMortemPage = ({ postMortem }: PostMortemPageProps) => {
   const {
     title,
     participants = [],
-    impacted_entities = [],
+    impactedEntities = [],
     description,
     detection,
     response,
     resolution,
     prevention,
-    lessons_learned,
+    lessonsLearned,
     timeline = [],
   } = postMortem;
 
@@ -134,7 +135,7 @@ export const PostMortemPage = ({ postMortem }: PostMortemPageProps) => {
               </CollapsibleCard>
 
               <CollapsibleCard title="Lessons Learned">
-                <MarkdownContent content={lessons_learned} />
+                <MarkdownContent content={lessonsLearned} />
               </CollapsibleCard>
             </Grid>
 
@@ -154,8 +155,8 @@ export const PostMortemPage = ({ postMortem }: PostMortemPageProps) => {
                     <Box>
                       <Typography variant="h6">Impacted Entities</Typography>
                       <Typography variant="body1">
-                        {impacted_entities.length > 0
-                          ? impacted_entities.join(', ')
+                        {impactedEntities.length > 0
+                          ? impactedEntities.join(', ')
                           : 'None'}
                       </Typography>
                     </Box>
