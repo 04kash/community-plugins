@@ -16,12 +16,43 @@
 import React from 'react';
 import { createDevApp } from '@backstage/dev-utils';
 import { morguePlugin, MorgueFullPageRouter } from '../src/plugin';
+import {
+  CatalogApi,
+  catalogApiRef,
+} from '@backstage/plugin-catalog-react';
+import { CatalogEntityPage } from '@backstage/plugin-catalog';
 
+// --- Dev App Setup ---
 createDevApp()
   .registerPlugin(morguePlugin)
+  .registerApi({
+    api: catalogApiRef,
+    deps: {},
+    factory: () =>
+      ({
+        async getEntityByRef(ref: string) {
+          if (ref === 'user:default/guest') {
+            return {
+              kind: 'User',
+              metadata: {
+                name: 'guest',
+                namespace: 'default',
+                description: 'Anonymous to the max',
+              },
+              spec: {},
+            };
+          }
+          return undefined;
+        },
+      } as CatalogApi),
+  })
   .addPage({
     element: <MorgueFullPageRouter />,
     title: 'FullPageRouter',
     path: '/full-page-router',
+  })
+  .addPage({
+    path: '/catalog/:kind/:namespace/:name', // Important to support EntityRefLink
+    element: <CatalogEntityPage />,
   })
   .render();

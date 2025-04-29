@@ -14,12 +14,20 @@
  * limitations under the License.
  */
 
+import { stringifyEntityRef } from '@backstage/catalog-model';
+
 export const generateTestData = (num: number) => {
   return Array.from({ length: num }, (_, index) => ({
     id: `${index + 1}`,
     title: `Incident ${index + 1}`,
-    participants: [`team-${index + 1}`, `user-${index + 2}`], // Multiple participants
-    impactedEntities: [`service-${index + 1}`, `service-${index + 2}`], // Multiple impacted entities
+    participants: [
+      stringifyEntityRef({ kind: 'Group', namespace: 'default', name: `team-${index + 1}` }),
+      stringifyEntityRef({ kind: 'User', namespace: 'default', name: `user-${index + 2}` }),
+    ],
+    impactedEntities: [
+      stringifyEntityRef({ kind: 'System', namespace: 'default', name: `system-${index + 1}` }),
+      stringifyEntityRef({ kind: 'Component', namespace: 'default', name: `service-${index + 2}` }),
+    ],
     description: `## What Happened
   
   This incident occurred during a routine update. There was an issue with the authentication service causing multiple users to be unable to log in. After investigation, it was found that the authentication token validation was incorrectly implemented.
@@ -73,3 +81,4 @@ export const generateTestData = (num: number) => {
     ],
   }));
 };
+

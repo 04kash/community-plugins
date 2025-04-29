@@ -43,6 +43,7 @@ import {
 import PlayArrowIcon from '@material-ui/icons/PlayArrow';
 import StopIcon from '@material-ui/icons/Stop';
 import FiberManualRecordIcon from '@material-ui/icons/FiberManualRecord';
+import { EntityRefLink } from '@backstage/plugin-catalog-react';
 
 type TimelineEntry = {
   time: string; // ISO timestamp
@@ -146,19 +147,34 @@ export const PostMortemPage = ({ postMortem }: PostMortemPageProps) => {
                   <InfoCard title="Incident Details">
                     <Box mb={2}>
                       <Typography variant="h6">Participants</Typography>
-                      <Typography variant="body1">
-                        {participants.length > 0
-                          ? participants.join(', ')
-                          : 'None'}
-                      </Typography>
+                      {participants.length > 0 ? (
+                        participants.map((participant, index) => (
+                          <Box key={participant} component="span" mr={1}>
+                            <EntityRefLink entityRef={participant}>
+                              {participant}
+                            </EntityRefLink>
+                            {index < participants.length - 1 && ','}
+                          </Box>
+                        ))
+                      ) : (
+                        <Typography variant="body1">None</Typography>
+                      )}
                     </Box>
+
                     <Box>
                       <Typography variant="h6">Impacted Entities</Typography>
-                      <Typography variant="body1">
-                        {impactedEntities.length > 0
-                          ? impactedEntities.join(', ')
-                          : 'None'}
-                      </Typography>
+                      {impactedEntities.length > 0 ? (
+                        impactedEntities.map((entity, index) => (
+                          <Box key={entity} component="span" mr={1}>
+                            <EntityRefLink entityRef={entity}>
+                              {entity}
+                            </EntityRefLink>
+                            {index < impactedEntities.length - 1 && ','}
+                          </Box>
+                        ))
+                      ) : (
+                        <Typography variant="body1">None</Typography>
+                      )}
                     </Box>
                   </InfoCard>
                 </Box>
