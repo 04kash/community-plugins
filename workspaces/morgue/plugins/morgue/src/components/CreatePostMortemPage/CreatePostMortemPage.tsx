@@ -75,7 +75,7 @@ const MarkdownField = ({
       {label}
     </Typography>
     <Box sx={{ padding: 2, borderRadius: 2, boxShadow: 1 }}>
-      <MDEditor value={value} onChange={onChange} height={200} />
+      <MDEditor value={value} onChange={onChange} preview="live" height={200} />
     </Box>
   </Box>
 );
