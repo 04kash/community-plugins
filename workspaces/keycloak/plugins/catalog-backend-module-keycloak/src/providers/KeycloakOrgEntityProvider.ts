@@ -15,6 +15,7 @@
  */
 
 import type {
+  DiscoveryService,
   LoggerService,
   SchedulerService,
   SchedulerServiceTaskRunner,
@@ -43,9 +44,13 @@ import {
   UserTransformer,
 } from '../lib';
 import { readProviderConfigs } from '../lib/config';
-import { readKeycloakRealm } from '../lib/read';
+import { parseUser, readKeycloakRealm } from '../lib/read';
 import { authenticate } from '../lib/authenticate';
 import { Attributes, Counter, Meter, metrics } from '@opentelemetry/api';
+import { EventsService } from '@backstage/plugin-events-node';
+import KeycloakAdminClient from '@keycloak/keycloak-admin-client';
+import UserRepresentation from '@keycloak/keycloak-admin-client/lib/defs/userRepresentation';
+import { CatalogApi, CatalogClient } from '@backstage/catalog-client';
 
 /**
  * Options for {@link KeycloakOrgEntityProvider}.
@@ -113,8 +118,14 @@ export const withLocations = (
   ) as Entity;
 };
 
+const TOPIC_USER_CREATE = 'admin.USER-CREATE';
+const TOPIC_USER_DELETE = 'admin.USER-DELETE';
+const TOPIC_USER_UPDATE = 'admin.USER-UPDATE';
+const TOPIC_USER_ADD_GROUP = 'admin.GROUP_MEMBERSHIP-CREATE';
+const TOPIC_USER_REMOVE_GROUP = 'admin.GROUP_MEMBERSHIP-DELETE';
+
 /**
- * Ingests org data (users and groups) from GitHub.
+ * Ingests org data (users and groups) from Keycloak.
  *
  * @public
  */
@@ -123,6 +134,8 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
   private meter: Meter;
   private counter: Counter<Attributes>;
   private scheduleFn?: () => Promise<void>;
+  private readonly events?: EventsService;
+  private readonly catalogApi: CatalogApi;
 
   /**
    * Static builder method to create multiple KeycloakOrgEntityProvider instances from a single config.
@@ -134,6 +147,9 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
     deps: {
       config: Config;
       logger: LoggerService;
+      catalogApi: CatalogApi;
+      events: EventsService;
+      discovery: DiscoveryService;
     },
     options: (
       | { schedule: SchedulerServiceTaskRunner }
@@ -143,7 +159,7 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
       groupTransformer?: GroupTransformer;
     },
   ): KeycloakOrgEntityProvider[] {
-    const { config, logger } = deps;
+    const { config, logger, catalogApi, events, discovery } = deps;
     return readProviderConfigs(config).map(providerConfig => {
       let taskRunner: SchedulerServiceTaskRunner | string;
       if ('scheduler' in options && providerConfig.schedule) {
@@ -164,6 +180,9 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
         id: providerConfig.id,
         provider: providerConfig,
         logger: logger,
+        events: events,
+        discovery: discovery,
+        catalogApi: catalogApi,
         taskRunner: taskRunner,
         userTransformer: options.userTransformer,
         groupTransformer: options.groupTransformer,
@@ -179,6 +198,9 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
       provider: KeycloakProviderConfig;
       logger: LoggerService;
       taskRunner: SchedulerServiceTaskRunner;
+      events: EventsService;
+      catalogApi: CatalogApi;
+      discovery: DiscoveryService;
       userTransformer?: UserTransformer;
       groupTransformer?: GroupTransformer;
     },
@@ -192,6 +214,10 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
       },
     );
     this.schedule(options.taskRunner);
+    this.events = options.events;
+    this.catalogApi = options.catalogApi
+      ? options.catalogApi
+      : new CatalogClient({ discoveryApi: options.discovery });
   }
 
   /**
@@ -208,6 +234,232 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
   async connect(connection: EntityProviderConnection) {
     this.connection = connection;
     await this.scheduleFn?.();
+
+    if (this.events) {
+      await this.events.subscribe({
+        id: this.getProviderName(),
+        topics: [TOPIC_USER_CREATE],
+        onEvent: async params => {
+          const logger = this.options.logger;
+          const provider = this.options.provider;
+
+          logger.info(`Received event :${params.topic}`);
+
+          const KeyCloakAdminClientModule = await import(
+            '@keycloak/keycloak-admin-client'
+          );
+          const KeyCloakAdminClient = KeyCloakAdminClientModule.default;
+
+          const kcAdminClient = new KeyCloakAdminClient({
+            baseUrl: provider.baseUrl,
+            realmName: provider.loginRealm,
+          });
+          await authenticate(kcAdminClient, provider, logger);
+
+          // TODO: Does it even make sense to add a user Entity without a group? Should this event just be ignored and we only listen for CREATE_MEMBERSHIP instead?
+          if (
+            params.topic === TOPIC_USER_CREATE ||
+            params.topic === TOPIC_USER_DELETE
+          ) {
+            await this.onUserEvent({
+              logger,
+              eventPayload: params.eventPayload,
+              client: kcAdminClient,
+            });
+          }
+          if (params.topic === TOPIC_USER_UPDATE) {
+            await this.onUserEdit({
+              logger,
+              eventPayload: params.eventPayload,
+              client: kcAdminClient,
+            });
+          }
+          if (
+            params.topic === TOPIC_USER_ADD_GROUP ||
+            params.topic === TOPIC_USER_REMOVE_GROUP
+          ) {
+            await this.onMembershipChange({
+              logger,
+              eventPayload: params.eventPayload,
+              client: kcAdminClient,
+            });
+          }
+        },
+      });
+    }
+  }
+
+  private addEntitiesOperation = (entities: Entity[]) => ({
+    removed: [],
+    added: entities.map(entity => ({
+      locationKey: `keycloak-org-provider:${this.options.id}`,
+      entity: withLocations(
+        this.options.provider.baseUrl,
+        this.options.provider.realm,
+        entity,
+      ),
+    })),
+  });
+
+  private removeEntitiesOperation = (entities: Entity[]) => ({
+    added: [],
+    removed: entities.map(entity => ({
+      locationKey: `keycloak-org-provider:${this.options.id}`,
+      entity: withLocations(
+        this.options.provider.baseUrl,
+        this.options.provider.realm,
+        entity,
+      ),
+    })),
+  });
+
+  private async onUserEdit(options: {
+    logger?: LoggerService;
+    eventPayload: any;
+    client: KeycloakAdminClient;
+  }): Promise<void> {
+    if (!this.connection) {
+      throw new NotFoundError('Not initialized');
+    }
+    const logger = options?.logger ?? this.options.logger;
+    const provider = this.options.provider;
+    const client = options.client;
+    const userId = options.eventPayload.resourcePath.split('/')[1];
+
+    const { items } = await this.catalogApi.getEntities({
+      filter: {
+        kind: 'User',
+        [`metadata.annotations.${KEYCLOAK_ID_ANNOTATION}`]: userId,
+      },
+    });
+
+    // TODO: Get all the groups this user belongs to and update them as well because their members field might change if newUser has a different name field
+
+    const oldUserEntity = items[0];
+
+    const newUser = await client.users.findOne({ id: userId });
+    if (!newUser) {
+      logger.debug(
+        `Failed to fetch user with ID ${userId} after USER_UPDATE event`,
+      );
+      return;
+    }
+
+    const newUserEntity = await parseUser(
+      newUser,
+      provider.realm,
+      [],
+      new Map(),
+      this.options.userTransformer,
+    );
+
+    if (!newUserEntity || !oldUserEntity) {
+      logger.debug(`Failed to parse user entity for user ID ${userId}`);
+      return;
+    }
+
+    const { added } = this.addEntitiesOperation([newUserEntity]);
+    const { removed } = this.removeEntitiesOperation([oldUserEntity]);
+
+    await this.connection.applyMutation({
+      type: 'delta',
+      added: added,
+      removed: removed,
+    });
+  }
+  private async onUserEvent(options: {
+    logger?: LoggerService;
+    eventPayload: any;
+    client: KeycloakAdminClient;
+  }): Promise<void> {
+    if (!this.connection) {
+      throw new NotFoundError('Not initialized');
+    }
+
+    const logger = options?.logger ?? this.options.logger;
+    const provider = this.options.provider;
+    const client = options.client;
+    const userId = options.eventPayload.resourcePath.split('/')[1];
+    let userEntity: Entity | undefined;
+
+    if (options.eventPayload.type === TOPIC_USER_CREATE) {
+      const userAdded = await client.users.findOne({ id: userId });
+
+      if (!userAdded) {
+        logger.debug(
+          `Failed to fetch user with ID ${userId} after USER_CREATE event`,
+        );
+        return;
+      }
+
+      userEntity = await parseUser(
+        userAdded,
+        provider.realm,
+        [],
+        new Map(),
+        this.options.userTransformer,
+      );
+    }
+    if (options.eventPayload.type === TOPIC_USER_DELETE) {
+      // Query the catalog for a user entity with the Keycloak ID annotation
+      const { items } = await this.catalogApi.getEntities({
+        filter: {
+          kind: 'User',
+          [`metadata.annotations.${KEYCLOAK_ID_ANNOTATION}`]: userId,
+        },
+      });
+      userEntity = items[0];
+
+      // TODO: Get all the groups this user belongs to and update them as well because their members field will change.
+    }
+
+    if (!userEntity) {
+      logger.debug(`Failed to parse user entity for user ID ${userId}`);
+      return;
+    }
+
+    const createDeltaOperation =
+      options.eventPayload.type === TOPIC_USER_CREATE
+        ? this.addEntitiesOperation
+        : this.removeEntitiesOperation;
+
+    const { added, removed } = createDeltaOperation([userEntity]);
+
+    await this.connection.applyMutation({
+      type: 'delta',
+      added: added,
+      removed: removed,
+    });
+  }
+
+  private async onMembershipChange(options: {
+    logger?: LoggerService;
+    eventPayload: any;
+    client: KeycloakAdminClient;
+  }): Promise<void> {
+    // If user is added/removed as a member of a group: members field for that group needs updating, memberOf field of the user needs updating
+    if (!this.connection) {
+      throw new NotFoundError('Not initialized');
+    }
+
+    const logger = options?.logger ?? this.options.logger;
+    const provider = this.options.provider;
+    const client = options.client;
+  }
+
+  private async onGroupEvent(options: {
+    logger?: LoggerService;
+    eventPayload: any;
+    client: KeycloakAdminClient;
+  }): Promise<void> {
+    // GROUP-CREATE
+    // 1. Top-level group: fetch group by ID and add it as a new entity in the catalog (no `/children` in resourcePath)
+    // 2. Subgroup: update the parent group and add the new subgroup as a separate entity in the catalog (`/children` in resourcePath)
+    // GROUP-DELETE
+    // Update the parent group, and remove the deleted group along with all its subgroups (resourcePath is `groups/<id-of-deleted-group>`)
+    // GROUP-UPDATE
+    // - Updating group name/metadata: update the parent, the group itself, and its subgroups
+    // - Moving a group to another parent: update the old parent, the group itself, and the new parent (subgroups stay under the group, no changes needed for them)
   }
 
   /**

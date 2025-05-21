@@ -24,6 +24,8 @@ import { catalogProcessingExtensionPoint } from '@backstage/plugin-catalog-node/
 import { keycloakTransformerExtensionPoint } from '../extensions';
 import type { GroupTransformer, UserTransformer } from '../lib/types';
 import { KeycloakOrgEntityProvider } from '../providers';
+import { eventsServiceRef } from '@backstage/plugin-events-node';
+import { CatalogClient } from '@backstage/catalog-client';
 
 /**
  * Registers the `KeycloakEntityProvider` with the catalog processing extension point.
@@ -56,16 +58,19 @@ export const catalogModuleKeycloakEntityProvider = createBackendModule({
         catalog: catalogProcessingExtensionPoint,
         config: coreServices.rootConfig,
         logger: coreServices.logger,
+        discovery: coreServices.discovery,
         scheduler: coreServices.scheduler,
+        events: eventsServiceRef,
       },
-      async init({ catalog, config, logger, scheduler }) {
+      async init({ catalog, config, logger, discovery, scheduler, events }) {
+        const catalogApi = new CatalogClient({ discoveryApi: discovery });
         catalog.addEntityProvider(
           KeycloakOrgEntityProvider.fromConfig(
-            { config, logger },
+            { config, logger, discovery, catalogApi, events },
             {
               scheduler: scheduler,
               schedule: scheduler.createScheduledTaskRunner({
-                frequency: { minutes: 30 },
+                frequency: { hours: 24 }, // One pull per day to catch any event updates that were missed
                 timeout: { minutes: 3 },
               }),
               userTransformer: userTransformer,
