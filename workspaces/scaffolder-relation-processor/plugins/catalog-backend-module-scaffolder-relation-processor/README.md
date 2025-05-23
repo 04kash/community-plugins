@@ -2,6 +2,8 @@
 
 This is an extension module to the catalog-backend plugin, providing an additional catalog entity processor that adds a new relation that depends on the `spec.scaffoldedFrom` field to link scaffolder templates and the catalog entities they generated.
 
+## test
+
 ## Getting Started
 
 1. Install the scaffolder relation catalog processor module using the following command:
