@@ -118,6 +118,7 @@ describe.each([
       {
         config: mockServices.rootConfig({ data: configData }),
         logger,
+        discovery: mockServices.discovery(),
       },
       {
         schedule,

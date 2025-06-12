@@ -162,7 +162,7 @@ export async function getEntities<T extends Users | Groups>(
   return entityResults;
 }
 
-async function getAllGroupMembers<T extends Groups>(
+export async function getAllGroupMembers<T extends Groups>(
   groupsAPI: () => Promise<T>,
   groupId: string,
   config: KeycloakProviderConfig,
@@ -196,6 +196,49 @@ async function getAllGroupMembers<T extends Groups>(
   return allMembers;
 }
 
+export async function getAllGroups<T extends Users>(
+  usersAPI: () => Promise<T>,
+  userId: string,
+  config: KeycloakProviderConfig,
+  options?: { groupQuerySize?: number },
+): Promise<GroupRepresentation[]> {
+  const querySize = options?.groupQuerySize || 100;
+
+  let allGroups: GroupRepresentation[] = [];
+  let page = 0;
+  let totalGroups = 0;
+
+  do {
+    const users = await usersAPI();
+    const groups = await users.listGroups({
+      id: userId,
+      max: querySize,
+      realm: config.realm,
+      first: page * querySize,
+    });
+
+    if (groups.length > 0) {
+      allGroups = allGroups.concat(...groups);
+      totalGroups = groups.length; // Get the number of groups retrieved
+    } else {
+      totalGroups = 0; // No groups retrieved
+    }
+
+    page++;
+  } while (totalGroups > 0);
+
+  return allGroups;
+}
+
+export async function getServerVersion(kcAdminClient: KeycloakAdminClient) {
+  const serverInfo = await kcAdminClient.serverInfo.find();
+  const serverVersion = parseInt(
+    serverInfo.systemInfo?.version?.slice(0, 2) || '',
+    10,
+  );
+  return serverVersion;
+}
+
 export async function processGroupsRecursively(
   kcAdminClient: KeycloakAdminClient,
   config: KeycloakProviderConfig,
@@ -216,7 +259,6 @@ export async function processGroupsRecursively(
         first: 0,
         max: group.subGroupCount,
         briefRepresentation: brief,
-        realm: config.realm,
       });
       const subGroupResults = await processGroupsRecursively(
         kcAdminClient,
@@ -289,12 +331,7 @@ export const readKeycloakRealm = async (
   let serverVersion: number;
 
   try {
-    await ensureTokenValid(client, config, logger);
-    const serverInfo = await client.serverInfo.find();
-    serverVersion = parseInt(
-      serverInfo.systemInfo?.version?.slice(0, 2) || '',
-      10,
-    );
+    serverVersion = await getServerVersion(client);
   } catch (error) {
     throw new Error(`Failed to retrieve Keycloak server information: ${error}`);
   }
