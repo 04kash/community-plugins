@@ -2553,6 +2553,17 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@backstage-community/plugin-events-backend-module-keycloak@workspace:plugins/events-backend-module-keycloak":
+  version: 0.0.0-use.local
+  resolution: "@backstage-community/plugin-events-backend-module-keycloak@workspace:plugins/events-backend-module-keycloak"
+  dependencies:
+    "@backstage/backend-plugin-api": "npm:^1.3.0"
+    "@backstage/backend-test-utils": "npm:^1.4.0"
+    "@backstage/cli": "npm:^0.32.0"
+    "@backstage/plugin-events-node": "npm:^0.4.11"
+  languageName: unknown
+  linkType: soft
+
 "@backstage/backend-app-api@npm:^1.2.2":
   version: 1.2.2
   resolution: "@backstage/backend-app-api@npm:1.2.2"
@@ -3206,17 +3217,6 @@ __metadata:
   checksum: 10/c25cc0737b5daafa1a92aebbd766bdfd5a32347023b221f92fd70f8d3f3246a3a59c129d17750f39ebb6d77676f851cfa8e062c9c12f2b44585563cef5907f34
   languageName: node
   linkType: hard
-
-"@backstage/plugin-events-backend-module-keycloak@workspace:plugins/events-backend-module-keycloak":
-  version: 0.0.0-use.local
-  resolution: "@backstage/plugin-events-backend-module-keycloak@workspace:plugins/events-backend-module-keycloak"
-  dependencies:
-    "@backstage/backend-plugin-api": "npm:^1.3.0"
-    "@backstage/backend-test-utils": "npm:^1.4.0"
-    "@backstage/cli": "npm:^0.32.0"
-    "@backstage/plugin-events-node": "npm:^0.4.11"
-  languageName: unknown
-  linkType: soft
 
 "@backstage/plugin-events-node@npm:^0.4.10, @backstage/plugin-events-node@npm:^0.4.11":
   version: 0.4.11

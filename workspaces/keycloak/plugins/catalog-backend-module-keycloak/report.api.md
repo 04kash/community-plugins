@@ -4,9 +4,12 @@
 
 ```ts
 import { BackendFeature } from '@backstage/backend-plugin-api';
+import { CatalogApi } from '@backstage/catalog-client';
 import type { Config } from '@backstage/config';
+import type { DiscoveryService } from '@backstage/backend-plugin-api';
 import type { EntityProvider } from '@backstage/plugin-catalog-node';
 import type { EntityProviderConnection } from '@backstage/plugin-catalog-node';
+import { EventsService } from '@backstage/plugin-events-node';
 import { ExtensionPoint } from '@backstage/backend-plugin-api';
 import type { GroupEntity } from '@backstage/catalog-model';
 import type GroupRepresentation from '@keycloak/keycloak-admin-client/lib/defs/groupRepresentation';
@@ -48,6 +51,9 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
     provider: KeycloakProviderConfig;
     logger: LoggerService;
     taskRunner: SchedulerServiceTaskRunner;
+    events?: EventsService;
+    catalogApi?: CatalogApi;
+    discovery: DiscoveryService;
     userTransformer?: UserTransformer;
     groupTransformer?: GroupTransformer;
   });
@@ -56,6 +62,9 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
     deps: {
       config: Config;
       logger: LoggerService;
+      catalogApi?: CatalogApi;
+      events?: EventsService;
+      discovery: DiscoveryService;
     },
     options: (
       | {

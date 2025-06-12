@@ -1,6 +1,6 @@
 {
   "version": "0.1.0",
-  "name": "@backstage/plugin-events-backend-module-keycloak",
+  "name": "@backstage-community/plugin-events-backend-module-keycloak",
   "license": "Apache-2.0",
   "private": true,
   "description": "The keycloak backend module for the events plugin.",
