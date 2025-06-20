@@ -60,13 +60,14 @@ export const catalogModuleKeycloakEntityProvider = createBackendModule({
         logger: coreServices.logger,
         discovery: coreServices.discovery,
         scheduler: coreServices.scheduler,
+        auth: coreServices.auth,
         events: eventsServiceRef,
       },
-      async init({ catalog, config, logger, discovery, scheduler, events }) {
+      async init({ catalog, config, logger, discovery, scheduler, events, auth }) {
         const catalogApi = new CatalogClient({ discoveryApi: discovery });
         catalog.addEntityProvider(
           KeycloakOrgEntityProvider.fromConfig(
-            { config, logger, discovery, catalogApi, events },
+            { config, logger, discovery, catalogApi, events, auth },
             {
               scheduler: scheduler,
               schedule: scheduler.createScheduledTaskRunner({
