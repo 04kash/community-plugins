@@ -417,10 +417,8 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
     });
   }
 
-  private async handleUserDelete(
+ private async handleUserDelete(
     userId: string,
-    client: KeycloakAdminClient,
-    provider: KeycloakProviderConfig,
     logger: LoggerService,
   ): Promise<void> {
     const { token } = await this.options.auth.getPluginRequestToken({
@@ -439,59 +437,16 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
       { token },
     );
 
-    // Update Groups that the user belonged to
-    const oldGroupEntityRefs =
-      userEntity?.relations
-        ?.filter(r => r.type === 'memberOf')
-        .map(r => r.targetRef) ?? [];
-
-    console.log(oldGroupEntityRefs)
-
-    const oldGroupEntities = (
-      await Promise.all(
-        oldGroupEntityRefs.map(ref =>
-          this.catalogApi.getEntityByRef(ref, { token }),
-        ),
-      )
-    ).filter((entity): entity is Entity => !entity);
-
-    const allGroups: GroupRepresentation[] = (
-      await Promise.all(
-        oldGroupEntities.map(async group => {
-          if (group.metadata.annotations) {
-            await ensureTokenValid(client, provider, logger);
-            return await client.groups.findOne({
-              id: group.metadata.annotations[KEYCLOAK_ID_ANNOTATION],
-              realm: provider.realm,
-            });
-          }
-          return undefined;
-        }),
-      )
-    ).filter((g): g is GroupRepresentation => !g);
-
-    const filteredParsedGroups = await this.createGroupEntities(
-      allGroups,
-      provider,
-      client,
-      logger,
-    );
-
     if (!userEntity) {
       logger.debug(`Failed to parse user entity for user ID ${userId}`);
       return;
     }
 
-    const { removed } = this.removeEntitiesOperation([
+    const { added, removed } = this.removeEntitiesOperation([
       userEntity,
-      ...oldGroupEntities,
     ]);
 
     console.log(removed);
-
-    const { added } = this.addEntitiesOperation([
-      ...filteredParsedGroups.map(g => g.entity),
-    ]);
 
     await this.connection!.applyMutation({
       type: 'delta',
