@@ -15,6 +15,7 @@
  */
 
 import type {
+  AuthService,
   DiscoveryService,
   LoggerService,
   SchedulerService,
@@ -173,6 +174,7 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
       logger: LoggerService;
       catalogApi?: CatalogApi;
       events?: EventsService;
+      auth: AuthService;
       discovery: DiscoveryService;
     },
     options: (
@@ -183,7 +185,7 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
       groupTransformer?: GroupTransformer;
     },
   ): KeycloakOrgEntityProvider[] {
-    const { config, logger, catalogApi, events, discovery } = deps;
+    const { config, logger, catalogApi, events, auth, discovery } = deps;
     return readProviderConfigs(config).map(providerConfig => {
       let taskRunner: SchedulerServiceTaskRunner | string;
       if ('scheduler' in options && providerConfig.schedule) {
@@ -207,6 +209,7 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
         events: events,
         discovery: discovery,
         catalogApi: catalogApi,
+        auth: auth,
         taskRunner: taskRunner,
         userTransformer: options.userTransformer,
         groupTransformer: options.groupTransformer,
@@ -225,6 +228,7 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
       events?: EventsService;
       catalogApi?: CatalogApi;
       discovery: DiscoveryService;
+      auth: AuthService;
       userTransformer?: UserTransformer;
       groupTransformer?: GroupTransformer;
     },
@@ -419,23 +423,35 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
     provider: KeycloakProviderConfig,
     logger: LoggerService,
   ): Promise<void> {
+    const { token } = await this.options.auth.getPluginRequestToken({
+      onBehalfOf: await this.options.auth.getOwnServiceCredentials(),
+      targetPluginId: 'catalog',
+    });
     const {
       items: [userEntity],
-    } = await this.catalogApi.getEntities({
-      filter: {
-        kind: 'User',
-        [`metadata.annotations.${KEYCLOAK_ID_ANNOTATION}`]: userId,
+    } = await this.catalogApi.getEntities(
+      {
+        filter: {
+          kind: 'User',
+          [`metadata.annotations.${KEYCLOAK_ID_ANNOTATION}`]: userId,
+        },
       },
-    });
+      { token },
+    );
 
     // Update Groups that the user belonged to
     const oldGroupEntityRefs =
       userEntity?.relations
         ?.filter(r => r.type === 'memberOf')
         .map(r => r.targetRef) ?? [];
+
+    console.log(oldGroupEntityRefs)
+
     const oldGroupEntities = (
       await Promise.all(
-        oldGroupEntityRefs.map(ref => this.catalogApi.getEntityByRef(ref)),
+        oldGroupEntityRefs.map(ref =>
+          this.catalogApi.getEntityByRef(ref, { token }),
+        ),
       )
     ).filter((entity): entity is Entity => !entity);
 
@@ -471,6 +487,8 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
       ...oldGroupEntities,
     ]);
 
+    console.log(removed);
+
     const { added } = this.addEntitiesOperation([
       ...filteredParsedGroups.map(g => g.entity),
     ]);
@@ -488,14 +506,21 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
     provider: KeycloakProviderConfig,
     logger: LoggerService,
   ): Promise<void> {
+    const { token } = await this.options.auth.getPluginRequestToken({
+      onBehalfOf: await this.options.auth.getOwnServiceCredentials(),
+      targetPluginId: 'catalog',
+    });
     const {
       items: [oldUserEntity],
-    } = await this.catalogApi.getEntities({
-      filter: {
-        kind: 'User',
-        [`metadata.annotations.${KEYCLOAK_ID_ANNOTATION}`]: userId,
+    } = await this.catalogApi.getEntities(
+      {
+        filter: {
+          kind: 'User',
+          [`metadata.annotations.${KEYCLOAK_ID_ANNOTATION}`]: userId,
+        },
       },
-    });
+      { token },
+    );
 
     const oldGroupEntityRefs =
       oldUserEntity?.relations
@@ -503,7 +528,9 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
         .map(r => r.targetRef) ?? [];
     const oldGroupEntities = (
       await Promise.all(
-        oldGroupEntityRefs.map(ref => this.catalogApi.getEntityByRef(ref)),
+        oldGroupEntityRefs.map(ref =>
+          this.catalogApi.getEntityByRef(ref, { token }),
+        ),
       )
     ).filter((entity): entity is Entity => !entity);
 
@@ -584,23 +611,22 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
     const userId = options.eventPayload.resourcePath.split('/')[1];
     const groupId = options.eventPayload.resourcePath.split('/')[3];
 
-    const {
-      items: [oldUserEntity],
-    } = await this.catalogApi.getEntities({
-      filter: {
-        kind: 'User',
-        [`metadata.annotations.${KEYCLOAK_ID_ANNOTATION}`]: userId,
-      },
+    const { token } = await this.options.auth.getPluginRequestToken({
+      onBehalfOf: await this.options.auth.getOwnServiceCredentials(),
+      targetPluginId: 'catalog',
     });
 
     const {
-      items: [oldGroupEntity],
-    } = await this.catalogApi.getEntities({
-      filter: {
-        kind: 'Group',
-        [`metadata.annotations.${KEYCLOAK_ID_ANNOTATION}`]: groupId,
+      items: [oldUserEntity],
+    } = await this.catalogApi.getEntities(
+      {
+        filter: {
+          kind: 'User',
+          [`metadata.annotations.${KEYCLOAK_ID_ANNOTATION}`]: userId,
+        },
       },
-    });
+      { token },
+    );
 
     await ensureTokenValid(client, provider, logger);
     const newUser = await client.users.findOne({ id: userId });
@@ -683,7 +709,7 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
       return;
     }
 
-    if (!oldGroupEntity || !newGroupEntity) {
+    if (!newGroupEntity) {
       logger.debug(
         `Failed to find group entity for group ID ${groupId} after membership change event`,
       );
@@ -691,12 +717,10 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
     }
 
     const { added } = this.addEntitiesOperation([
-      newUserEntity,
-      newGroupEntity.entity,
+      newUserEntity
     ]);
     const { removed } = this.removeEntitiesOperation([
       oldUserEntity,
-      oldGroupEntity,
     ]);
 
     await this.connection.applyMutation({
@@ -808,15 +832,23 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
         return;
       }
 
+      const { token } = await this.options.auth.getPluginRequestToken({
+        onBehalfOf: await this.options.auth.getOwnServiceCredentials(),
+        targetPluginId: 'catalog',
+      });
+
       // Find the old parent group entity
       const {
         items: [oldParentGroupEntity],
-      } = (await this.catalogApi.getEntities({
-        filter: {
-          kind: 'Group',
-          [`metadata.annotations.${KEYCLOAK_ID_ANNOTATION}`]: parentGroupId,
+      } = (await this.catalogApi.getEntities(
+        {
+          filter: {
+            kind: 'Group',
+            [`metadata.annotations.${KEYCLOAK_ID_ANNOTATION}`]: parentGroupId,
+          },
         },
-      })) as { items: [GroupEntity] };
+        { token },
+      )) as { items: [GroupEntity] };
 
       if (!oldParentGroupEntity) {
         logger.debug(
@@ -861,20 +893,29 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
     client: KeycloakAdminClient,
   ) {
     const groupId = resourcePath[1];
+
+    const { token } = await this.options.auth.getPluginRequestToken({
+      onBehalfOf: await this.options.auth.getOwnServiceCredentials(),
+      targetPluginId: 'catalog',
+    });
+
     const {
       items: [deletedGroup],
-    } = (await this.catalogApi.getEntities({
-      filter: {
-        kind: 'Group',
-        [`metadata.annotations.${KEYCLOAK_ID_ANNOTATION}`]: groupId,
+    } = (await this.catalogApi.getEntities(
+      {
+        filter: {
+          kind: 'Group',
+          [`metadata.annotations.${KEYCLOAK_ID_ANNOTATION}`]: groupId,
+        },
       },
-    })) as { items: [GroupEntity] };
+      { token },
+    )) as { items: [GroupEntity] };
 
     const parentEntityRef = this.getParentEntityRef(deletedGroup);
     const subgroupRefs = this.getSubgroupRefs(deletedGroup);
 
     const oldParentEntity = parentEntityRef
-      ? await this.catalogApi.getEntityByRef(parentEntityRef)
+      ? await this.catalogApi.getEntityByRef(parentEntityRef, { token })
       : undefined;
 
     const validSubgroupEntities = await this.getEntitiesByRefs(subgroupRefs);
@@ -949,8 +990,12 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
   }
 
   private async getEntitiesByRefs(refs: string[]): Promise<Entity[]> {
+    const { token } = await this.options.auth.getPluginRequestToken({
+      onBehalfOf: await this.options.auth.getOwnServiceCredentials(),
+      targetPluginId: 'catalog',
+    });
     const entities = await Promise.all(
-      refs.map(ref => this.catalogApi.getEntityByRef(ref)),
+      refs.map(ref => this.catalogApi.getEntityByRef(ref, { token })),
     );
     return entities.filter((entity): entity is Entity => !!entity);
   }
@@ -998,9 +1043,15 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
     const oldUserEntities: Entity[] = [];
     const newUserEntities: Entity[] = [];
 
+    const { token } = await this.options.auth.getPluginRequestToken({
+      onBehalfOf: await this.options.auth.getOwnServiceCredentials(),
+      targetPluginId: 'catalog',
+    });
+
     for (const [userEntityRef] of userMembershipsToUpdate.entries()) {
       const userEntityInCatalog = await this.catalogApi.getEntityByRef(
         userEntityRef,
+        {token}
       );
       if (userEntityInCatalog?.metadata.annotations?.[KEYCLOAK_ID_ANNOTATION]) {
         oldUserEntities.push(userEntityInCatalog);
