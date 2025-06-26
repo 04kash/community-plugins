@@ -367,7 +367,7 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
       await this.handleUserCreate(userId, client, provider, logger);
     }
     if (options.eventPayload.type === TOPIC_USER_DELETE) {
-      await this.handleUserDelete(userId, client, provider, logger);
+      await this.handleUserDelete(userId, logger);
     }
 
     if (options.eventPayload.type === TOPIC_USER_UPDATE) {
@@ -417,7 +417,7 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
     });
   }
 
- private async handleUserDelete(
+  private async handleUserDelete(
     userId: string,
     logger: LoggerService,
   ): Promise<void> {
@@ -442,9 +442,7 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
       return;
     }
 
-    const { added, removed } = this.removeEntitiesOperation([
-      userEntity,
-    ]);
+    const { added, removed } = this.removeEntitiesOperation([userEntity]);
 
     console.log(removed);
 
@@ -671,12 +669,8 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
       return;
     }
 
-    const { added } = this.addEntitiesOperation([
-      newUserEntity
-    ]);
-    const { removed } = this.removeEntitiesOperation([
-      oldUserEntity,
-    ]);
+    const { added } = this.addEntitiesOperation([newUserEntity]);
+    const { removed } = this.removeEntitiesOperation([oldUserEntity]);
 
     await this.connection.applyMutation({
       type: 'delta',
@@ -1006,7 +1000,7 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
     for (const [userEntityRef] of userMembershipsToUpdate.entries()) {
       const userEntityInCatalog = await this.catalogApi.getEntityByRef(
         userEntityRef,
-        {token}
+        { token },
       );
       if (userEntityInCatalog?.metadata.annotations?.[KEYCLOAK_ID_ANNOTATION]) {
         oldUserEntities.push(userEntityInCatalog);

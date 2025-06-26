@@ -259,6 +259,7 @@ export async function processGroupsRecursively(
         first: 0,
         max: group.subGroupCount,
         briefRepresentation: brief,
+        realm: config.realm,
       });
       const subGroupResults = await processGroupsRecursively(
         kcAdminClient,
