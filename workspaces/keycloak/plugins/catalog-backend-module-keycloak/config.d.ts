@@ -61,6 +61,25 @@ export interface Config {
            */
           briefRepresentation?: boolean;
           schedule?: SchedulerServiceTaskScheduleDefinitionConfig;
+          /**
+           * SPIKE (RHIDP-15634): poll Keycloak Admin Events API for delta sync.
+           * Local PoC only — not a supported production feature yet.
+           */
+          adminEvents?: {
+            /**
+             * Enable Admin Events polling.
+             */
+            enabled: boolean;
+            /**
+             * Poll schedule. Required when enabled is true.
+             */
+            schedule?: SchedulerServiceTaskScheduleDefinitionConfig;
+            /**
+             * Max events fetched per poll.
+             * @defaultValue 100
+             */
+            maxResults?: number;
+          };
         } & (
           | {
               /**

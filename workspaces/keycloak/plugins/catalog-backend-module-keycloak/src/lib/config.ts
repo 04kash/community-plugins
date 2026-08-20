@@ -103,6 +103,20 @@ export type KeycloakProviderConfig = {
    * @defaultValue true
    */
   briefRepresentation?: boolean;
+
+  /**
+   * SPIKE (RHIDP-15634): optional Admin Events API polling for delta sync.
+   * When enabled, a separate schedule polls `/admin-events` and applies catalog
+   * delta mutations. The primary `schedule` continues to run full sync as a
+   * safety net (use a lower frequency when relying on admin events).
+   */
+  adminEvents?: {
+    enabled: boolean;
+    /** Poll schedule for admin events. Required when enabled. */
+    schedule?: SchedulerServiceTaskScheduleDefinition;
+    /** Max events per poll page. @defaultValue 100 */
+    maxResults?: number;
+  };
 };
 
 const readProviderConfig = (
@@ -126,6 +140,27 @@ const readProviderConfig = (
   const briefRepresentation = providerConfigInstance.getOptionalBoolean(
     'briefRepresentation',
   );
+
+  let adminEvents: KeycloakProviderConfig['adminEvents'];
+  if (providerConfigInstance.has('adminEvents')) {
+    const adminEventsConfig = providerConfigInstance.getConfig('adminEvents');
+    const enabled = adminEventsConfig.getBoolean('enabled');
+    const adminEventsSchedule = adminEventsConfig.has('schedule')
+      ? readSchedulerServiceTaskScheduleDefinitionFromConfig(
+          adminEventsConfig.getConfig('schedule'),
+        )
+      : undefined;
+    if (enabled && !adminEventsSchedule) {
+      throw new InputError(
+        `adminEvents.schedule must be provided when adminEvents.enabled is true.`,
+      );
+    }
+    adminEvents = {
+      enabled,
+      schedule: adminEventsSchedule,
+      maxResults: adminEventsConfig.getOptionalNumber('maxResults'),
+    };
+  }
 
   if (clientId && !clientSecret) {
     throw new InputError(
@@ -167,6 +202,7 @@ const readProviderConfig = (
     groupQuerySize,
     maxConcurrency,
     briefRepresentation,
+    adminEvents,
   };
 };
 

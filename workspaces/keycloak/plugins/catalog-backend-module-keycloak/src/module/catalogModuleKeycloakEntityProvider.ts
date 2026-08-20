@@ -19,7 +19,10 @@ import {
   createBackendModule,
 } from '@backstage/backend-plugin-api';
 import { InputError } from '@backstage/errors';
-import { catalogProcessingExtensionPoint } from '@backstage/plugin-catalog-node';
+import {
+  catalogProcessingExtensionPoint,
+  catalogServiceRef,
+} from '@backstage/plugin-catalog-node';
 
 import { keycloakTransformerExtensionPoint } from '../extensions';
 import type { GroupTransformer, UserTransformer } from '../lib/types';
@@ -54,14 +57,16 @@ export const catalogModuleKeycloakEntityProvider = createBackendModule({
     env.registerInit({
       deps: {
         catalog: catalogProcessingExtensionPoint,
+        catalogApi: catalogServiceRef,
+        auth: coreServices.auth,
         config: coreServices.rootConfig,
         logger: coreServices.logger,
         scheduler: coreServices.scheduler,
       },
-      async init({ catalog, config, logger, scheduler }) {
+      async init({ catalog, catalogApi, auth, config, logger, scheduler }) {
         catalog.addEntityProvider(
           KeycloakOrgEntityProvider.fromConfig(
-            { config, logger },
+            { config, logger, catalog: catalogApi, auth },
             {
               scheduler: scheduler,
               schedule: scheduler.createScheduledTaskRunner({
