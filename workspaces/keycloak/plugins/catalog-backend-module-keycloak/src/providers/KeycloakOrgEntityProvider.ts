@@ -15,6 +15,7 @@
  */
 
 import type {
+  AuthService,
   LoggerService,
   SchedulerService,
   SchedulerServiceTaskRunner,
@@ -27,6 +28,7 @@ import {
 import type { Config } from '@backstage/config';
 import { InputError, isError, NotFoundError } from '@backstage/errors';
 import type {
+  CatalogService,
   EntityProvider,
   EntityProviderConnection,
 } from '@backstage/plugin-catalog-node';
@@ -47,6 +49,12 @@ import {
 import { readProviderConfigs } from '../lib/config';
 import { readKeycloakRealm } from '../lib/read';
 import { authenticate } from '../lib/authenticate';
+import {
+  AdminEventsDeltaApplicator,
+  AdminEventsWatermark,
+  fetchAdminEventsSince,
+  indexEntitiesByKeycloakId,
+} from '../lib/adminEvents';
 
 /**
  * Options for {@link KeycloakOrgEntityProvider}.
@@ -124,6 +132,12 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
   private meter: Meter;
   private counter: Counter<Attributes>;
   private scheduleFn?: () => Promise<void>;
+  /** SPIKE (RHIDP-15634): admin-events poll scheduler starter */
+  private adminEventsScheduleFn?: () => Promise<void>;
+  /** SPIKE (RHIDP-15634): in-memory poll cursor (not persisted across restarts) */
+  private adminEventsWatermark?: AdminEventsWatermark;
+  /** SPIKE (RHIDP-15634): Keycloak id → entity cache (CatalogService is source of truth for cascade) */
+  private entityIndex = new Map<string, Entity>();
 
   /**
    * Static builder method to create multiple KeycloakOrgEntityProvider instances from a single config.
@@ -135,6 +149,9 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
     deps: {
       config: Config;
       logger: LoggerService;
+      /** Optional: enables CatalogService-backed cascade delete / rename-move. */
+      catalog?: CatalogService;
+      auth?: AuthService;
     },
     options: (
       | { schedule: SchedulerServiceTaskRunner }
@@ -144,7 +161,7 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
       groupTransformer?: GroupTransformer;
     },
   ): KeycloakOrgEntityProvider[] {
-    const { config, logger } = deps;
+    const { config, logger, catalog, auth } = deps;
     return readProviderConfigs(config).map(providerConfig => {
       let taskRunner: SchedulerServiceTaskRunner | string;
       if ('scheduler' in options && providerConfig.schedule) {
@@ -161,11 +178,26 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
         );
       }
 
+      let adminEventsTaskRunner: SchedulerServiceTaskRunner | undefined;
+      if (providerConfig.adminEvents?.enabled) {
+        if (!('scheduler' in options) || !providerConfig.adminEvents.schedule) {
+          throw new InputError(
+            `Admin events polling requires a scheduler and adminEvents.schedule for KeycloakOrgEntityProvider:${providerConfig.id}.`,
+          );
+        }
+        adminEventsTaskRunner = options.scheduler.createScheduledTaskRunner(
+          providerConfig.adminEvents.schedule,
+        );
+      }
+
       const provider = new KeycloakOrgEntityProvider({
         id: providerConfig.id,
         provider: providerConfig,
         logger: logger,
         taskRunner: taskRunner,
+        adminEventsTaskRunner,
+        catalog,
+        auth,
         userTransformer: options.userTransformer,
         groupTransformer: options.groupTransformer,
       });
@@ -180,6 +212,9 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
       provider: KeycloakProviderConfig;
       logger: LoggerService;
       taskRunner: SchedulerServiceTaskRunner;
+      adminEventsTaskRunner?: SchedulerServiceTaskRunner;
+      catalog?: CatalogService;
+      auth?: AuthService;
       userTransformer?: UserTransformer;
       groupTransformer?: GroupTransformer;
     },
@@ -193,6 +228,9 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
       },
     );
     this.schedule(options.taskRunner);
+    if (options.adminEventsTaskRunner) {
+      this.scheduleAdminEvents(options.adminEventsTaskRunner);
+    }
   }
 
   /**
@@ -209,6 +247,7 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
   async connect(connection: EntityProviderConnection) {
     this.connection = connection;
     await this.scheduleFn?.();
+    await this.adminEventsScheduleFn?.();
   }
 
   /**
@@ -258,15 +297,87 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
 
     const { markCommitComplete } = markReadComplete({ users, groups });
 
+    const entities = [...users, ...groups].map(entity =>
+      withLocations(provider.baseUrl, provider.realm, entity),
+    );
+
     await this.connection.applyMutation({
       type: 'full',
-      entities: [...users, ...groups].map(entity => ({
+      entities: entities.map(entity => ({
         locationKey: `keycloak-org-provider:${this.options.id}`,
-        entity: withLocations(provider.baseUrl, provider.realm, entity),
+        entity,
       })),
     });
 
+    // SPIKE (RHIDP-15634): refresh in-memory index used by admin-event deltas
+    this.entityIndex = indexEntitiesByKeycloakId(entities);
+
     markCommitComplete();
+  }
+
+  /**
+   * SPIKE (RHIDP-15634): poll Admin Events API and apply catalog delta mutations.
+   */
+  async readAdminEvents(options: { logger?: LoggerService }) {
+    if (!this.connection) {
+      throw new NotFoundError('Not initialized');
+    }
+    if (!this.options.provider.adminEvents?.enabled) {
+      return;
+    }
+
+    const logger = options.logger ?? this.options.logger;
+    const provider = this.options.provider;
+
+    const kcAdminClient = new KeyCloakAdminClient({
+      baseUrl: provider.baseUrl,
+      realmName: provider.loginRealm,
+    });
+    await authenticate(kcAdminClient, provider, logger);
+
+    const { events, rawCount, nextWatermark } = await fetchAdminEventsSince({
+      client: kcAdminClient,
+      realm: provider.realm,
+      watermark: this.adminEventsWatermark,
+      maxResults: provider.adminEvents?.maxResults,
+    });
+
+    logger.info(
+      `Admin events poll: ${rawCount} raw event(s), ${events.length} org-relevant event(s)`,
+    );
+
+    const applicator = new AdminEventsDeltaApplicator({
+      connection: this.connection,
+      provider,
+      logger,
+      locationKey: `keycloak-org-provider:${this.options.id}`,
+      entityIndex: this.entityIndex,
+      catalog: this.options.catalog,
+      auth: this.options.auth,
+      userTransformer: this.options.userTransformer,
+      groupTransformer: this.options.groupTransformer,
+      withLocations: entity =>
+        withLocations(provider.baseUrl, provider.realm, entity),
+    });
+
+    for (const event of events) {
+      try {
+        await applicator.apply(event, kcAdminClient);
+      } catch (error) {
+        if (isError(error)) {
+          logger.error(
+            `Failed to apply admin event ${event.resourceType}-${event.operationType} (${event.resourcePath})`,
+            {
+              name: error.name,
+              message: error.message,
+              stack: error.stack,
+            },
+          );
+        }
+      }
+    }
+
+    this.adminEventsWatermark = nextWatermark;
   }
 
   /**
@@ -299,6 +410,40 @@ export class KeycloakOrgEntityProvider implements EntityProvider {
                 message: error.message,
                 stack: error.stack,
                 // Additional status code if available:
+                status: (error.response as { status?: string })?.status,
+              });
+            }
+          }
+        },
+      });
+    };
+  }
+
+  /**
+   * SPIKE (RHIDP-15634): schedule Admin Events polling alongside full sync.
+   */
+  scheduleAdminEvents(taskRunner: SchedulerServiceTaskRunner) {
+    this.adminEventsScheduleFn = async () => {
+      const id = `${this.getProviderName()}:admin-events`;
+      await taskRunner.run({
+        id,
+        fn: async () => {
+          const taskInstanceId = uuidv4();
+          const logger = this.options.logger.child({
+            class: KeycloakOrgEntityProvider.prototype.constructor.name,
+            taskId: id,
+            taskInstanceId,
+          });
+
+          try {
+            await this.readAdminEvents({ logger });
+          } catch (error) {
+            if (isError(error)) {
+              logger.error('Error while polling Keycloak admin events', {
+                name: error.name,
+                cause: error.cause,
+                message: error.message,
+                stack: error.stack,
                 status: (error.response as { status?: string })?.status,
               });
             }

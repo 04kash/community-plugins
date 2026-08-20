@@ -48,6 +48,8 @@ describe('readProviderConfigs', () => {
         userQuerySize: undefined,
         groupQuerySize: undefined,
         briefRepresentation: undefined,
+        maxConcurrency: undefined,
+        adminEvents: undefined,
       },
     ]);
   });
@@ -95,6 +97,8 @@ describe('readProviderConfigs', () => {
         userQuerySize: 100,
         groupQuerySize: 200,
         briefRepresentation: true,
+        maxConcurrency: undefined,
+        adminEvents: undefined,
         schedule: {
           scope: undefined,
           frequency: { hours: 1 },
@@ -103,6 +107,63 @@ describe('readProviderConfigs', () => {
         },
       },
     ]);
+  });
+
+  it('should parse adminEvents spike config when enabled', () => {
+    const config = mockServices.rootConfig({
+      data: deepmerge(CONFIG, {
+        catalog: {
+          providers: {
+            keycloakOrg: {
+              default: {
+                adminEvents: {
+                  enabled: true,
+                  maxResults: 50,
+                  schedule: {
+                    frequency: { minutes: 1 },
+                    timeout: { minutes: 1 },
+                  },
+                },
+              },
+            },
+          },
+        },
+      }),
+    });
+
+    const result = readProviderConfigs(config);
+
+    expect(result[0].adminEvents).toEqual({
+      enabled: true,
+      maxResults: 50,
+      schedule: {
+        scope: undefined,
+        frequency: { minutes: 1 },
+        timeout: { minutes: 1 },
+      },
+    });
+  });
+
+  it('should throw when adminEvents is enabled without a schedule', () => {
+    const config = mockServices.rootConfig({
+      data: deepmerge(CONFIG, {
+        catalog: {
+          providers: {
+            keycloakOrg: {
+              default: {
+                adminEvents: {
+                  enabled: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+    });
+
+    expect(() => readProviderConfigs(config)).toThrow(
+      `adminEvents.schedule must be provided when adminEvents.enabled is true.`,
+    );
   });
 
   it('should throw an error if clientId is provided without clientSecret', () => {
